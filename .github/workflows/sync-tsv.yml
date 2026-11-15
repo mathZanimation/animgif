@@ -1,34 +1,43 @@
 
-name: Sync Google Sheets to TSV
+name: Auto Update TSV from Google Sheets
 
 on:
   schedule:
-    - cron: "7,22,37,52 * * * *"
+    - cron: "2-59/5 * * * *"
   workflow_dispatch:
 
 permissions:
   contents: write
 
+concurrency:
+  group: sync-google-sheet
+  cancel-in-progress: false
+
 jobs:
-  update-tsv:
+  sync:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout GitHub repository
         uses: actions/checkout@v4
 
-      - name: Download latest Google Sheet
+      - name: Download latest Google Sheets TSV
         run: |
           curl -fLsS --retry 3 \
             "https://docs.google.com/spreadsheets/d/1pIrv23bmeWwMQPCddqazZUESgZ8awfpmmSMmN7vB4bw/export?format=tsv&gid=2041180650" \
-            -o coba.tsv
+            -o new.tsv
 
-          head -n 1 coba.tsv | grep -q "username"
+          if ! head -n 1 new.tsv | grep -q "username"; then
+            echo "Invalid TSV download"
+            exit 1
+          fi
 
-      - name: Commit updated file
+          mv new.tsv coba.tsv
+
+      - name: Save new data to GitHub
         run: |
           if git diff --quiet -- coba.tsv; then
-            echo "No changes found."
+            echo "No new data"
             exit 0
           fi
 
@@ -36,5 +45,5 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
           git add coba.tsv
-          git commit -m "Auto-update TSV from Google Sheets"
+          git commit -m "Auto sync Google Form responses"
           git push
